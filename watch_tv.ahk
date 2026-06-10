@@ -3,7 +3,9 @@ SetWorkingDir(A_ScriptDir)
 
 ; --- 1. Load the main list ---
 Channels := Map()
-DisplayList := ["Favorites"] ; Added Favorites as default
+DisplayList := ["Favorites"] 
+PendingRemove := false
+PendingName := ""
 
 if !FileExist("channel_list.txt") {
     MsgBox("Error: channel_list.txt not found.")
@@ -22,7 +24,7 @@ Loop Parse, FileContent, "`n", "`r" {
 
 ; --- 2. Create the GUI ---
 MyGui := Gui("+LastFound", "VLC TV Streamer")
-MyGui.BackColor := "1A1A1A"  ; Dark background
+MyGui.BackColor := "1A1A1A"  
 MyGui.SetFont("s10 cWhite", "Segoe UI")
 MyGui.MarginX := 25
 MyGui.MarginY := 20
@@ -51,7 +53,7 @@ PlayBtn.OnEvent("Click", LaunchVLC)
 OpenPlBtn := MyGui.Add("Button", "x+10 w110 h40", "📂 Open Playlist")
 OpenPlBtn.OnEvent("Click", LaunchPlaylist)
 
-FavBtn := MyGui.Add("Button", "x+10 w60 h40", "❤️") ; Repositioned before Close
+FavBtn := MyGui.Add("Button", "x+10 w60 h40", "❤️") 
 FavBtn.OnEvent("Click", ToggleFavorite)
 
 ExitBtn := MyGui.Add("Button", "x+10 w110 h40", "✕ Close")
@@ -64,15 +66,14 @@ MyGui.Add("Link", "x20 y465 w280", 'Made with ♥ by: <a href="https://github.co
 SubChannels := Map() 
 MyGui.Show("w800 h510")
 
-; Initialize the list for the first item (Favorites)
 OnCategoryChange()
 
 ; --- 3. Parsing Logic ---
 OnCategoryChange(*) {
+    global PendingRemove := false
     ChList.Delete()
     SubChannels.Clear()
 
-    ; Logic for Favorites Category
     if (MainChoice.Text = "Favorites") {
         if FileExist("favorites.txt") {
             FavContent := FileRead("favorites.txt")
@@ -146,72 +147,75 @@ OnCategoryChange(*) {
 LaunchVLC(*) {
     if (ChList.Text = "" || ChList.Text ~= "No channels|Failed to connect|Possible Errors|Please check|No favorites")
         return
-
     FinalURL := SubChannels[ChList.Text]
     VLC_Path := "C:\Program Files\VideoLAN\VLC\vlc.exe"
     VLC_Path_x86 := "C:\Program Files (x86)\VideoLAN\VLC\vlc.exe"
     FinalPath := FileExist(VLC_Path) ? VLC_Path : (FileExist(VLC_Path_x86) ? VLC_Path_x86 : "")
-
-    if (FinalPath != "") {
+    if (FinalPath != "")
         Run('"' FinalPath '" "' FinalURL '"')
-    } else {
+    else
         VlcNotFound()
-    }
 }
 
 LaunchPlaylist(*) {
     if (MainChoice.Text = "" || MainChoice.Text = "Favorites")
         return
-
     FinalURL := Channels[MainChoice.Text]
     VLC_Path := "C:\Program Files\VideoLAN\VLC\vlc.exe"
     VLC_Path_x86 := "C:\Program Files (x86)\VideoLAN\VLC\vlc.exe"
     FinalPath := FileExist(VLC_Path) ? VLC_Path : (FileExist(VLC_Path_x86) ? VLC_Path_x86 : "")
-
-    if (FinalPath != "") {
+    if (FinalPath != "")
         Run('"' FinalPath '" "' FinalURL '"')
-    } else {
+    else
         VlcNotFound()
-    }
 }
 
 ToggleFavorite(*) {
-    if (ChList.Text = "" || ChList.Text ~= "No channels|Failed to connect|Possible Errors|Please check")
+    global PendingRemove, PendingName
+    if (ChList.Text = "" || ChList.Text ~= "No channels|Failed to connect|Possible Errors|Please check|No favorites")
         return
 
     ; REMOVE LOGIC
     if (MainChoice.Text = "Favorites") {
-        if !FileExist("favorites.txt")
-            return
+        if (PendingRemove && PendingName == ChList.Text) {
+            SetTimer(ResetChLabel, 0) ; Stop the 3s confirmation timer
             
-        NameToRemove := ChList.Text
-        NewFileContent := ""
-        Loop Parse, FileRead("favorites.txt"), "`n", "`r" {
-            if (A_LoopField = "")
-                continue
-            if !RegExMatch(A_LoopField, '^"' RegExEscape(NameToRemove) '":') {
-                NewFileContent .= A_LoopField "`n"
+            NameToRemove := ChList.Text
+            NewFileContent := ""
+            Loop Parse, FileRead("favorites.txt"), "`n", "`r" {
+                if (A_LoopField != "" && !RegExMatch(A_LoopField, '^"' RegExEscape(NameToRemove) '":'))
+                    NewFileContent .= A_LoopField "`n"
             }
+            FileDelete("favorites.txt")
+            if (Trim(NewFileContent) != "")
+                FileAppend(NewFileContent, "favorites.txt")
+            
+            ChLabel.Text := "❌ " NameToRemove " removed from favorites"
+            PendingRemove := false
+            SetTimer(OnCategoryChange, -1000) ; Refresh after 1s
+            return
+        } else {
+            PendingRemove := true
+            PendingName := ChList.Text
+            ChLabel.Text := "⚠️ Press again to remove from favorites..."
+            SetTimer(ResetChLabel, -3000)
+            return
         }
-        FileDelete("favorites.txt")
-        if (Trim(NewFileContent) != "")
-            FileAppend(NewFileContent, "favorites.txt")
-        
-        OnCategoryChange() ; Refresh the list
-        return
     }
 
     ; ADD LOGIC
     Name := ChList.Text
     URL := SubChannels[Name]
-    Entry := '"' Name '": "' URL '"'
-    
-    FileAppend(Entry "`n", "favorites.txt")
-    
-    ; Temporary Feedback Logic
+    FileAppend('"' Name '": "' URL '"' "`n", "favorites.txt")
     OriginalText := ChLabel.Text
     ChLabel.Text := "💖 " Name " added to favorites!"
     SetTimer(() => ChLabel.Text := OriginalText, -2000)
+}
+
+ResetChLabel() {
+    global PendingRemove
+    PendingRemove := false
+    OnCategoryChange()
 }
 
 RegExEscape(Str) {
