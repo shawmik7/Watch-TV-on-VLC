@@ -3,7 +3,7 @@ SetWorkingDir(A_ScriptDir)
 
 ; --- 1. Load the main list ---
 Channels := Map()
-DisplayList := []
+DisplayList := ["Favorites"] ; Added Favorites as default
 
 if !FileExist("channel_list.txt") {
     MsgBox("Error: channel_list.txt not found.")
@@ -29,11 +29,11 @@ MyGui.MarginY := 20
 
 ; --- Header Section ---
 MyGui.SetFont("s14 w700")
-MyGui.Add("Text", "w750 c1E90FF", "📺 VLC TV Streamer") ; Changed DodgerBlue to Hex
+MyGui.Add("Text", "w750 c1E90FF", "📺 VLC TV Streamer") 
 MyGui.SetFont("s10 w400")
 
 ; --- LEFT COLUMN (Selection) ---
-MyGui.Add("GroupBox", "x20 y60 w280 h395 c808080", " 1. Select Category ") 
+MyGui.Add("GroupBox", "x20 y60 w280 h395 c808080", " 1. Select a Category ") 
 MainChoice := MyGui.Add("ListBox", "vMainSelect x30 y85 w260 r18 Background252525 cWhite Choose1", DisplayList)
 MainChoice.OnEvent("Change", OnCategoryChange)
 
@@ -45,31 +45,59 @@ ChList := MyGui.Add("ListBox", "vChList x320 y85 w460 r18 Background252525 cWhit
 ChList.OnEvent("DoubleClick", LaunchVLC)
 
 ; --- BOTTOM BUTTONS ---
-PlayBtn := MyGui.Add("Button", "Default x320 y+20 w120 h40", "▶ Watch Now")
+PlayBtn := MyGui.Add("Button", "Default x320 y+20 w110 h40", "▶ Watch Now")
 PlayBtn.OnEvent("Click", LaunchVLC)
 
-OpenPlBtn := MyGui.Add("Button", "x+15 w120 h40", "📂 Open Playlist")
+OpenPlBtn := MyGui.Add("Button", "x+10 w110 h40", "📂 Open Playlist")
 OpenPlBtn.OnEvent("Click", LaunchPlaylist)
 
-ExitBtn := MyGui.Add("Button", "x+15 w120 h40", "✕ Close")
+FavBtn := MyGui.Add("Button", "x+10 w60 h40", "❤️") ; Repositioned before Close
+FavBtn.OnEvent("Click", ToggleFavorite)
+
+ExitBtn := MyGui.Add("Button", "x+10 w110 h40", "✕ Close")
 ExitBtn.OnEvent("Click", (*) => ExitApp())
 
 ; --- FOOTER (Credits) ---
 MyGui.SetFont("s9")
-MyGui.Add("Link", "x20 y465 w280", 'Made with <3 by: <a href="https://github.com/shawmik7/">shawmik7</a>')
+MyGui.Add("Link", "x20 y465 w280", 'Made with ♥ by: <a href="https://github.com/shawmik7/">shawmik7</a>')
 
 SubChannels := Map() 
 MyGui.Show("w800 h510")
 
-; Initialize the list for the first item
+; Initialize the list for the first item (Favorites)
 OnCategoryChange()
 
-; --- 3. Robust M3U Parsing Logic ---
+; --- 3. Parsing Logic ---
 OnCategoryChange(*) {
-    SelectedURL := Channels[MainChoice.Text]
     ChList.Delete()
     SubChannels.Clear()
-    
+
+    ; Logic for Favorites Category
+    if (MainChoice.Text = "Favorites") {
+        if FileExist("favorites.txt") {
+            FavContent := FileRead("favorites.txt")
+            Names := []
+            Loop Parse, FavContent, "`n", "`r" {
+                if RegExMatch(A_LoopField, '"(.+?)":\s*"(.+?)"', &Match) {
+                    SubChannels[Match[1]] := Match[2]
+                    Names.Push(Match[1])
+                }
+            }
+            if (Names.Length > 0) {
+                ChList.Add(Names)
+                ChLabel.Text := "❤ Favorite Channels (" Names.Length " available):"
+            } else {
+                ChList.Add(["No favorites added yet..."])
+                ChLabel.Text := "Favorites Empty"
+            }
+        } else {
+            ChList.Add(["No favorites added yet..."])
+            ChLabel.Text := "Favorites Empty"
+        }
+        return
+    }
+
+    SelectedURL := Channels[MainChoice.Text]
     if !RegExMatch(SelectedURL, "i)\.m3u8?$") {
         ChList.Add([MainChoice.Text])
         SubChannels[MainChoice.Text] := SelectedURL
@@ -110,16 +138,13 @@ OnCategoryChange(*) {
         }
     } catch {
         ChList.Add(["Failed to connect to playlist... "])
-        ChList.Add([""])
-        ChList.Add(["Possible Errors: Disconnected from Network. "])
-        ChList.Add(["Please check your network connection and try again. "])
         ChLabel.Text := "❌ Error Fetching Channels... "
     }
 }
 
-; --- 4. Play Logic ---
+; --- 4. Logic Functions ---
 LaunchVLC(*) {
-    if (ChList.Text = "" || ChList.Text = "No channels found in playlist... " || ChList.Text = "Failed to connect to playlist... " || ChList.Text = "Possible Errors: Disconnected from Network. " || ChList.Text = "Please check your network connection and try again. ")
+    if (ChList.Text = "" || ChList.Text ~= "No channels|Failed to connect|Possible Errors|Please check|No favorites")
         return
 
     FinalURL := SubChannels[ChList.Text]
@@ -135,7 +160,7 @@ LaunchVLC(*) {
 }
 
 LaunchPlaylist(*) {
-    if (MainChoice.Text = "")
+    if (MainChoice.Text = "" || MainChoice.Text = "Favorites")
         return
 
     FinalURL := Channels[MainChoice.Text]
@@ -148,6 +173,49 @@ LaunchPlaylist(*) {
     } else {
         VlcNotFound()
     }
+}
+
+ToggleFavorite(*) {
+    if (ChList.Text = "" || ChList.Text ~= "No channels|Failed to connect|Possible Errors|Please check")
+        return
+
+    ; REMOVE LOGIC
+    if (MainChoice.Text = "Favorites") {
+        if !FileExist("favorites.txt")
+            return
+            
+        NameToRemove := ChList.Text
+        NewFileContent := ""
+        Loop Parse, FileRead("favorites.txt"), "`n", "`r" {
+            if (A_LoopField = "")
+                continue
+            if !RegExMatch(A_LoopField, '^"' RegExEscape(NameToRemove) '":') {
+                NewFileContent .= A_LoopField "`n"
+            }
+        }
+        FileDelete("favorites.txt")
+        if (Trim(NewFileContent) != "")
+            FileAppend(NewFileContent, "favorites.txt")
+        
+        OnCategoryChange() ; Refresh the list
+        return
+    }
+
+    ; ADD LOGIC
+    Name := ChList.Text
+    URL := SubChannels[Name]
+    Entry := '"' Name '": "' URL '"'
+    
+    FileAppend(Entry "`n", "favorites.txt")
+    
+    ; Temporary Feedback Logic
+    OriginalText := ChLabel.Text
+    ChLabel.Text := "💖 " Name " added to favorites!"
+    SetTimer(() => ChLabel.Text := OriginalText, -2000)
+}
+
+RegExEscape(Str) {
+    return RegExReplace(Str, "([\\.*?+\[\{|\(\)\^$])", "\$1")
 }
 
 VlcNotFound() {
