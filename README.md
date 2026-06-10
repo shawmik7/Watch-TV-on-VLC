@@ -5,8 +5,7 @@ How to use:
 1. Download [AutoHotKey](https://www.autohotkey.com/) v2
 2. Download the files and place both "watch_tv.ahk" and "channel_list.txt" in the same directory.
 3. Open "watch_tv.ahk" by double clicking on it.
-4. Select the desired option from the dropdown menu and then press "Watch" to open the playlist in VLC Media Player.
-5. Enjoy! 
+4. Enjoy! 
 
 
 <b>How to update the channel list: </b><br/>
