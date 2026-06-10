@@ -10,4 +10,4 @@ How to use:
 
 <b>How to update the channel list: </b><br/>
 [Click this link](https://github.com/iptv-org/iptv/blob/master/PLAYLISTS.md) to get the IPTV links. <br/>
-The format for the <i>channel_list.txt</i> file is: "text_shown_on_the_dropdown_list": "link_for_the_playlist"
+The format for the <i>channel_list.txt</i> file is: "text_shown_on_the_left_list": "link_for_the_playlist"
