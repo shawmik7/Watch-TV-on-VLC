@@ -1,3 +1,4 @@
+"Test 3": "https://google.com"
 "Test 2": "https://google.com"
 "Test": "https://google.com"
 "Language - Bangla": "https://iptv-org.github.io/iptv/languages/ben.m3u"
