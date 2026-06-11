@@ -1,4 +1,3 @@
-"Test": "https://google.com/"
 "Language - Bangla": "https://iptv-org.github.io/iptv/languages/ben.m3u"
 "Language - English": "https://iptv-org.github.io/iptv/languages/eng.m3u"
 "Language - Hindi": "https://iptv-org.github.io/iptv/languages/hin.m3u"
